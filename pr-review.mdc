@@ -1,0 +1,190 @@
+---
+description: >-
+  List open PRs on 247-App (excluding busycaesar as author and PRs already
+  approved by busycaesar), for each PR use a worktree, review, and record
+  Approved vs issues
+alwaysApply: false
+---
+
+## Step 1 — Open PRs (GitHub CLI)
+
+Run from any directory (pass the repo explicitly). List open PRs for **`247Sports/247-App`** that are **not** opened by **`busycaesar`** and have **not** already been approved by **`busycaesar`** (exclude by **author** and by **already-approved review state**; do **not** filter by assignee).
+
+Use **one** command only—the JSON output is the canonical queue (no separate “plain” `gh pr list` pass). Default **`--limit`** is **20** for every run:
+
+```bash
+gh pr list --repo 247Sports/247-App --search "is:open -author:busycaesar -review:approved" --limit 20 --json number,title,url,headRefName,baseRefName
+```
+
+> **Filter explanation:** `-author:busycaesar` removes PRs opened by the reviewer. `-review:approved` removes any PR that already has at least one approving review, so the queue only surfaces PRs that still need a review pass.
+
+If the result array has **20** items, there may be more PRs matching the filter—increase **`--limit`** (e.g. `50` or `200`) and re-run until the count is below the limit, or until you have the full set you need.
+
+If the JSON array is **empty**, stop: there is no PR to review. Write **`.cursor/pr-review-report.md`** with a one-line note that the queue was empty (so the rule’s output shape is consistent).
+
+### Persist the queue (do not skip)
+
+Save the list so you cannot lose track of which PRs are in scope for this run, and so you can resume or audit later.
+
+1. In the **workspace** (the repo where this rule lives), write the **exact JSON array** from the `gh pr list --json` command to **`.cursor/pr-review-queue.json`**. Create the `.cursor` directory if needed. This file is the **canonical ordered queue** for the session.
+
+2. Create or reset **`.cursor/pr-review-progress.json`** with a stub you will append to after each PR, for example:
+
+```json
+{
+  "queueFile": ".cursor/pr-review-queue.json",
+  "completed": []
+}
+```
+
+Do **not** record run timestamps (no `startedAt`, no `date` command, no clock fields in JSON or Markdown).
+
+After **Step 5** for each **`PR`**, append an entry to **`completed`** with at least **`pr`** (number), **`outcome`** (`"approved"` or `"issues"`), and **`summary`** (one line or the same text you would use for GitHub). That way you always know what is left: any **`number`** in the queue file that is not yet in **`completed`** still needs a pass (or was skipped intentionally—call that out).
+
+3. **Markdown report (human-readable, do not skip):** Create or reset **`.cursor/pr-review-report.md`**. This is the **visual report** the user opens to skim the run—use clear headings, a queue table, and copy-paste-ready PR comments.
+
+   **Initial content (right after Step 1, before any PR is finished):**
+   - Title: `# PR review — 247Sports/247-App`
+   - One short paragraph: repo (`247Sports/247-App`), search filter (exclude author `busycaesar`; exclude already-approved PRs), and total PR count in the queue (no timestamps).
+   - `## Queue` — a **Markdown table** with columns: **`PR`**, **`Title`**, **`Branch`**, **`URL`**, **`Status`**. Set **`Status`** to `Pending` for every row (match the **exact order** of the JSON queue).
+   - `## Per-PR notes` — empty, with a single line such as _(none yet — sections appear as each PR is completed)._
+
+   **After each PR completes Step 5:** keep the JSON progress in sync **and** update the Markdown file:
+   - In the **Queue** table, set that PR’s **`Status`** to **`Approved`** or **`Issues`** (match **`outcome`**).
+   - Under **`## Per-PR notes`**, append a subsection for this PR only, in this shape (fill in real values):
+
+     ```markdown
+     ### PR #123 — Example title
+
+     - **Outcome:** Approved (or Issues)
+     - **Summary:** One line; mirrors `summary` in JSON.
+
+     **Comment for GitHub** (copy-paste):
+
+     > Paste-ready approval or issue list with paths/behavior.
+     ```
+
+   - If the run stops early, the table shows which rows are still **`Pending`**; completed rows show **`Approved`** / **`Issues`**.
+
+   **Optional end of run:** After the last PR, add a short `## Run summary` with counts (e.g. approved vs issues) and whether the queue was fully processed.
+
+These artifact paths live under **`.cursor/`**, which is typically gitignored; they are **local run outputs**, not something to commit. The JSON files are machine-readable; **`.cursor/pr-review-report.md`** is the primary file to open for a visual pass.
+
+---
+
+## Steps 2–5 — For each PR (repeat until the list is exhausted)
+
+Process PRs **in the order returned** by the JSON array (first list item first, then the next, and so on). For **each** object, let **`PR`** = `number`, **`BRANCH`** = `headRefName`, and **`BASE`** = `baseRefName` (default **`main`** if missing). Run **Step 2 → Step 3 → Step 4 → Step 5** for that **`PR`**, then run **Step 6** before moving to the next PR.
+
+---
+
+### Step 2 — Worktree first (never delete worktree or branch up front)
+
+Work from a **local clone** of `https://github.com/247Sports/247-App` (same remote as `--repo 247Sports/247-App`). GitHub exposes every PR as `pull/<PR>/head`. Use the **same local branch name as the remote PR head** (**BRANCH**, from `headRefName` in **`.cursor/pr-review-queue.json`**), not a synthetic name like `pr-review-<PR>`.
+
+**Do not** delete **`WT`** or **`BRANCH`** before starting (no `git worktree remove --force`, no `git branch -D`, no clearing the path “to start clean”). **Always attempt to create the worktree first**, then handle the cases below.
+
+Let **`WT`** = `../247-App-pr-${PR}` (sibling of the main clone; adjust if your layout differs). Let **`BASE`** be `baseRefName` from the queue (e.g. `main`); rebasing uses **`origin/${BASE}`** (e.g. `origin/main` when **`BASE`** is `main`).
+
+1. **Attempt to create the worktree first:**
+
+```bash
+git worktree add "${WT}" "${BRANCH}"
+```
+
+2. **If the worktree already exists** (`git worktree add` fails because **`WT`** is already registered / path exists, or **`WT`** appears in `git worktree list`): **`cd`** into **`WT`**, then continue with **Step 3** (do not merge or rebase here).
+
+Repair a broken registration if needed (`git worktree repair`, etc.), without deleting **`BRANCH`**.
+
+3. **If `BRANCH` does not exist locally yet** (`git worktree add` fails with an unknown revision / invalid ref): create the branch from the PR head, then create the worktree:
+
+```bash
+git fetch origin "pull/${PR}/head:refs/heads/${BRANCH}"
+git worktree add "${WT}" "${BRANCH}"
+```
+
+Then **`cd`** into **`WT`** and go to **Step 3**. The branch ref already matches **`pull/${PR}/head`** from that fetch—**do not** fetch or pull the PR head again in Step 3.
+
+4. **If the branch already existed locally but the worktree did not** (`git worktree add` in step 1 **succeeds** using an existing **`BRANCH`**): **`cd`** into **`WT`**, then go to **Step 3** (PR sync + rebase happen there, not here).
+
+5. **`cd`** into **`WT`** if you are not already there. Later git commands in Steps 3–4 run **here** unless noted.
+
+---
+
+### Step 3 — Rebase onto base
+
+Inside **`WT`** on **`BRANCH`**, the worktree already has the PR’s code (Step 2 put it there—either by creating **`BRANCH`** from **`pull/${PR}/head`** in case 3, or by reusing the existing local **`BRANCH`** in cases 1/4). **Do not** re-fetch or re-pull the PR branch here.
+
+The only remote operation in Step 3 is updating **`origin`** refs so the rebase target is current, then rebasing **`BRANCH`** onto the integration branch. Use **`BASE`** from the queue; rebase target is **`origin/${BASE}`** (e.g. **`origin/main`** when **`BASE`** is **`main`**):
+
+```bash
+git fetch origin
+git rebase "origin/${BASE}"
+```
+
+If **rebase** conflicts, stop and report instead of forcing.
+
+---
+
+### Step 4 — `git diff`, then review (checklist placeholder)
+
+1. **Scope (optional but recommended):** Read the PR title and body (`gh pr view "${PR}" --repo 247Sports/247-App`).
+
+2. **Diff in the worktree:** Compare this branch to the PR base. Use **`BASE`** from the queue (`baseRefName`, e.g. `main`). Step 3 already ran **`git fetch origin`**, so **`origin/${BASE}`** should be current—no extra fetch unless that ref is missing:
+
+```bash
+git diff "origin/${BASE}...HEAD"
+```
+
+If **`origin/${BASE}`** is missing or clearly stale, `git fetch origin "${BASE}"` (or `git fetch origin`) once, then run **`git diff`** again. If the base ref name differs locally, adjust to match your clone’s remote-tracking branch.
+
+Show the **full** `git diff` output for review. **Do not** truncate with `tail`, `head`, or similar—inspect the complete diff (scroll or page as needed).
+
+3. **Review:** Walk the diff and focus on **new code added** and **old code removed**. Decide whether the change is **okay to approve** from this pass, or **not okay** (issues to call out).
+
+4. **Review checklist — placeholder:** Apply a structured checklist **here** once provided. Until then, use this stub:
+   - [ ] _(Checklist TBD — specific items will be supplied later.)_
+
+   Do **not** invent a full checklist beyond obvious issues (bugs, security, tests) until the real list replaces this placeholder.
+
+---
+
+### Step 5 — Record the outcome
+
+Write notes the user can paste into GitHub or keep in a log. Always include **`PR`** (the numeric id). Also **update `.cursor/pr-review-progress.json`** with this **`PR`** in **`completed`** (see Step 1, “Persist the queue”), **and** update **`.cursor/pr-review-report.md`** (queue table row + **`## Per-PR notes`** subsection) as described in Step 1, item 3.
+
+#### If everything is okay
+
+- Record **`PR`** and a short **comment** the user can post on the PR, explicitly marking approval, e.g. that the basic review passed and the change is **Approved** (adjust wording to match team norms).
+
+#### If something is wrong
+
+- Record **`PR`** and a **comment** that lists the **suspect or problematic parts**: file paths, behavior, or review threads to fix, with enough detail to act on. Do **not** mark as approved.
+
+---
+
+### Step 6 — Clean up before the next PR
+
+From the **main clone** (not inside the PR worktree), remove only the worktree so the next iteration does not collide with the same path:
+
+```bash
+git worktree remove "../247-App-pr-${PR}"
+```
+
+If removal fails (locked files, etc.), fix or use `git worktree remove --force` only when appropriate.
+
+**Do not** delete the local branch **`BRANCH`** here—removing the worktree is enough; keep **`refs/heads/${BRANCH}`** for reuse on the next review of the same PR.
+
+Then continue with the **next** PR in the Step 1 JSON list until all have been processed.
+
+---
+
+## Summary
+
+| Phase | Action                                                                                                                                                                                                                                                        |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Single `gh pr list` (filtered, **`--limit 20`** default, JSON) → **`.cursor/pr-review-queue.json`**; init **`.cursor/pr-review-progress.json`**; init **`.cursor/pr-review-report.md`** (queue table + placeholder for notes).                                |
+| 2–5   | For **each** **`PR`**: worktree first (Step 2 puts the PR’s code on **`BRANCH`**) → Step 3 `git fetch origin` + `git rebase origin/${BASE}` → **full** **`git diff`** vs **`BASE`** (no `tail`/`head`) → review → record → update JSON + **report** Markdown. |
+| 6     | `git worktree remove` only (**do not** delete **`BRANCH`**); repeat for next **`PR`**.                                                                                                                                                                        |
+
+**Primary output for the user to read:** **`.cursor/pr-review-report.md`** (Markdown: queue + per-PR notes + GitHub-ready comments). JSON files stay the machine-readable queue and progress log.
