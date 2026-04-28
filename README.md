@@ -6,7 +6,42 @@ PRDaemon is a background automation tool that silently monitors open pull reques
 
 ## Features
 
+- **Automated PR discovery** — queries GitHub for open PRs that haven't been approved yet, filtering out the bot author and already-reviewed entries, and writes the queue to `prs-to-review.json`.
+- **Isolated worktree reviews** — each PR branch is checked out into its own `./worktrees/<branch>` directory so reviews never disturb the main checkout.
+- **Security-focused diff analysis** — diffs each branch against `origin/main` and checks for injection, broken auth, hard-coded secrets, weak crypto, unsafe input handling, supply-chain risks, insecure error handling, race conditions, and frontend/backend-specific vulnerabilities.
+- **Structured report output** — findings are recorded in `pr-review.md` with a summary table (PR, branch, status, notes) and a detailed issues section with file paths, line ranges, severity, and recommended fixes.
+- **Resilient batch processing** — reviews continue even if a single branch fails (fetch error, dirty worktree, etc.); failures are recorded as `Issues` rows with a short explanation.
+- **Automatic worktree cleanup** — each worktree is removed and pruned after its review completes, keeping the repo tidy across runs.
+
 ## How to run the project?
+
+### Prerequisites
+
+- [GitHub CLI (`gh`)](https://cli.github.com/) installed and authenticated (`gh auth login`).
+- Access to the target repository (`247sports/247-App` by default).
+- Git 2.5+ (for worktree support).
+
+### Running a review
+
+Open the project in Claude Code and invoke the PR review skill:
+
+```
+/pr-review
+```
+
+Claude will:
+
+1. Fetch all open, un-approved PRs from the configured repository and write them to `prs-to-review.json`.
+2. For each PR, create an isolated worktree, diff the branch against `origin/main`, and perform a security-focused code review.
+3. Persist the outcome (Approved / Issues) to `pr-review.md`, updating any existing rows for the same branch in place.
+4. Clean up each worktree after its review finishes.
+
+### Output files
+
+| File | Purpose |
+| ---- | ------- |
+| `prs-to-review.json` | Queue of PRs fetched in the latest run (PR number + branch name). |
+| `pr-review.md` | Cumulative review log: summary table at the top, detailed findings below. |
 
 ## Author
 
