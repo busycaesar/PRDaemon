@@ -7,18 +7,23 @@ alwaysApply: false
 
 ## Step 1: Fetch open PRs into the review queue
 
-Run the following command to retrieve open PRs that match the review filter:
+Before running the query, load the configuration values from `config.json` at the project root. The file defines:
+
+- `repo` — the target GitHub repository in `owner/name` form (used as `--repo`).
+- `authorUsername` — the GitHub username whose PRs should be excluded from the queue and whose existing approvals should cause a PR to be skipped.
+
+Substitute these values into the command below as `$REPO` and `$AUTHOR`:
 
 ```bash
 gh pr list \
-  --repo 247sports/247-App \
-  --search "is:open -author:busycaesar" \
+  --repo "$REPO" \
+  --search "is:open -author:$AUTHOR" \
   --limit 20 \
   --json number,headRefName,reviews \
-  --jq '[.[] | select([.reviews[]? | select(.state == "APPROVED" and .author.login == "busycaesar")] | length == 0) | {number, headRefName}]'
+  --jq "[.[] | select([.reviews[]? | select(.state == \"APPROVED\" and .author.login == \"$AUTHOR\")] | length == 0) | {number, headRefName}]"
 ```
 
-The `-reviewed-by:@me` qualifier excludes PRs the current authenticated user has already reviewed (including approvals), so previously-approved PRs are skipped on subsequent runs.
+The `-author:$AUTHOR` qualifier excludes PRs opened by the configured author, and the `--jq` filter further drops any PR that already has an `APPROVED` review from that same user, so previously-approved PRs are skipped on subsequent runs.
 
 Take the command's stdout (a JSON array of objects with `number` and `headRefName`) and write it to `prs-to-review.json` in the same directory as this rule file (`.cursor/rules/prs-to-review.json`), replacing the file if it exists. Save valid JSON for each entry — only the PR `number` and branch name (`headRefName`) — pretty-printed with 2-space indent. If the array is empty, still write `[]` so the queue file reflects the current run.
 

@@ -38,10 +38,10 @@ Claude will:
 
 ### Output files
 
-| File | Purpose |
-| ---- | ------- |
-| `prs-to-review.json` | Queue of PRs fetched in the latest run (PR number + branch name). |
-| `pr-review.md` | Cumulative review log: summary table at the top, detailed findings below. |
+| File                 | Purpose                                                                   |
+| -------------------- | ------------------------------------------------------------------------- |
+| `prs-to-review.json` | Queue of PRs fetched in the latest run (PR number + branch name).         |
+| `pr-review.md`       | Cumulative review log: summary table at the top, detailed findings below. |
 
 ## Author
 
