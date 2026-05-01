@@ -7,11 +7,6 @@ alwaysApply: false
 
 ## Step 1: Fetch open PRs into the review queue
 
-Ensure `config.json` at the project root defines:
-
-- `repo` — the target GitHub repository in `owner/name` form (passed to `gh` as `--repo`).
-- `authorUsername` — the GitHub username whose PRs should be excluded from the queue and whose existing approvals should cause a PR to be skipped.
-
 From the project root, run `fetch-prs-to-review.sh` so the queue file is created or refreshed:
 
 ```bash
@@ -20,9 +15,7 @@ From the project root, run `fetch-prs-to-review.sh` so the queue file is created
 
 If the script is not executable, use `bash fetch-prs-to-review.sh` instead.
 
-On success it writes the queue to **`cache/pr-review/prs-to-review.json`** (see `fetch-prs-to-review.sh` for query filters and JSON shape).
-
-You need `gh` and `jq` on your `PATH`, with `gh` authenticated for the configured repository.
+On success it writes the queue to **`cache/pr-review/prs-to-review.json`**.
 
 ## Step 2: Review each PR by invoking `code-review`
 
