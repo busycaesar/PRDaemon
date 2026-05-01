@@ -6,8 +6,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-QUEUE="${SCRIPT_DIR}/cache/pr-review/prs-to-review.json"
-CODE_REVIEW_MD="${SCRIPT_DIR}/code-review.md"
+ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+QUEUE="${ROOT}/cache/pr-review/prs-to-review.json"
+CODE_REVIEW_MD="${ROOT}/code-review.md"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo 'error: jq is required to read the JSON queue.' >&2

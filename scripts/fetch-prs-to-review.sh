@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Reads config.yaml next to this script, lists open PRs via gh, writes
+# Reads repo-root config.yaml, lists open PRs via gh, writes
 # cache/pr-review/prs-to-review.json (2-space indent; [] when empty).
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$SCRIPT_DIR"
+ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CONFIG="${ROOT}/config.yaml"
 
 CACHE_DIR="${ROOT}/cache/pr-review"
