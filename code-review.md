@@ -6,25 +6,13 @@ alwaysApply: true
 
 Given a PR number (`$PR_NUMBER`) and branch name (`$BRANCH`), prepare an isolated working copy in `./worktrees/$BRANCH` so the review can happen without disturbing the main checkout. `$PR_NUMBER` is carried through and recorded in the review log; `$BRANCH` drives the git operations.
 
-1. Fetch the latest copy of the branch from `origin`:
+Run `./scripts/prepare-review-worktree.sh` with `$BRANCH` (from anywhere inside this git repo):
 
-   ```bash
-   git fetch origin "$BRANCH"
-   ```
+```bash
+./scripts/prepare-review-worktree.sh "$BRANCH"
+```
 
-2. Try to create a new worktree at `./worktrees/$BRANCH` tracking that branch:
-
-   ```bash
-   git worktree add "./worktrees/$BRANCH" "$BRANCH"
-   ```
-
-3. If the worktree already exists (the previous command fails because the path or branch is already checked out somewhere), reuse it instead — `cd` into the existing worktree directory and check out the branch:
-
-   ```bash
-   cd "./worktrees/$BRANCH"
-   git checkout "$BRANCH"
-   git pull --ff-only origin "$BRANCH"
-   ```
+The script fetches `origin/$BRANCH`, adds `./worktrees/$BRANCH`, or refreshes an existing worktree path. Because a subprocess cannot change your shell’s cwd, use the **`cd`** line it prints after success.
 
 After this step, the current working directory must be `./worktrees/$BRANCH` with `$BRANCH` checked out and up to date with `origin/$BRANCH`.
 
@@ -77,8 +65,8 @@ The file always has two sections, in this order:
 
 1. **A summary table** at the very top with one row per reviewed branch and exactly these columns:
 
-   | PR | Branch | Status | Notes |
-   | -- | ------ | ------ | ----- |
+   | PR  | Branch | Status | Notes |
+   | --- | ------ | ------ | ----- |
    - `PR` — the value of `$PR_NUMBER` rendered as `#<number>` (e.g. `#819`). Use `-` if no PR number is available.
    - `Branch` — the value of `$BRANCH`.
    - `Status` — either `Approved` (no findings worth blocking on) or `Issues` (one or more findings).
@@ -109,8 +97,8 @@ The file always has two sections, in this order:
 ```markdown
 # PR review log
 
-| PR | Branch | Status | Notes |
-| -- | ------ | ------ | ----- |
+| PR  | Branch | Status | Notes |
+| --- | ------ | ------ | ----- |
 
 ## Issues details
 ```
